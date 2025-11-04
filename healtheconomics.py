@@ -375,24 +375,135 @@ elif analisis.startswith("6️⃣"):
         st.dataframe(df_cca, hide_index=True, use_container_width=True)
         descarga_csv(df_cca, "CCA_resultados")
 
-# 7+8+9) CEA, CUA, CBA
-else:
-    # Definir tabla de tratamientos
-    st.header(f"{analisis}")
-    tx0=pd.DataFrame({'Tratamiento':['A','B','C'],'Costo total':[0,10000,22000],'Efectividad':[0,0.4,0.55]})
-    tx=st.data_editor(tx0,num_rows='dynamic',key='tx')
-    if tx.shape[0]>=2:
-        df=tx.copy().reset_index(drop=True)
-        df=df.sort_values('Costo total').reset_index(drop=True)
-        df['ΔCosto']=df['Costo total'].diff()
-        df['ΔEfect']=df['Efectividad'].diff()
-        df['ICER']=df.apply(lambda r: r['ΔCosto']/r['ΔEfect'] if r['ΔEfect']>0 else np.nan,axis=1)
-        st.subheader("Tabla incremental")
-        st.dataframe(df,hide_index=True,use_container_width=True)
-        # Gráfico CE plane
-        fig,ax=plt.subplots(); ax.scatter(df['Efectividad'],df['Costo total']);
-        for i,r in df.iterrows(): ax.annotate(r['Tratamiento'],(r['Efectividad'],r['Costo total']))
-        st.pyplot(fig)
-        descarga_csv(df,'CEA_CUA')
+# elif analisis.startswith("7️⃣"):
+    st.header("7️⃣ Costo-Efectividad (CEA)")
+
+    st.caption("Ingresa costo total y efectividad (p. ej., tasa de respuesta, casos evitados, AVAD evitados, etc.).")
+    df0 = pd.DataFrame({
+        "Tratamiento": ["A", "B", "C"],
+        "Costo total": [0.0, 10000.0, 22000.0],
+        "Efectividad": [0.0, 0.40, 0.55]
+    })
+    tx = st.data_editor(df0, num_rows="dynamic", key="cea_tx")
+
+    if tx.shape[0] >= 2:
+        # Validaciones básicas
+        if (tx["Costo total"] < 0).any():
+            st.error("Hay costos negativos. Ajusta los datos.")
+        elif (tx["Efectividad"] < 0).any():
+            st.error("Hay efectividades negativas. Ajusta los datos.")
+        else:
+            df = tx.copy().reset_index(drop=True)
+            # Orden estándar para ICER: por Efectividad ascendente
+            df = df.sort_values("Efectividad").reset_index(drop=True)
+            df["ΔCosto"] = df["Costo total"].diff()
+            df["ΔEfect"] = df["Efectividad"].diff()
+            df["ICER"]   = df.apply(
+                lambda r: (r["ΔCosto"] / r["ΔEfect"]) if r["ΔEfect"] and r["ΔEfect"] > 0 else np.nan,
+                axis=1
+            )
+
+            st.subheader("Tabla incremental (ordenada por efectividad)")
+            st.dataframe(df, hide_index=True, use_container_width=True)
+
+            # Gráfico: plano Costo-Efectividad
+            fig, ax = plt.subplots()
+            ax.scatter(df["Efectividad"], df["Costo total"])
+            for i, r in df.iterrows():
+                ax.annotate(r["Tratamiento"], (r["Efectividad"], r["Costo total"]))
+            ax.set_xlabel("Efectividad")
+            ax.set_ylabel("Costo total (U.M.)")
+            ax.set_title("Plano Costo-Efectividad (CEA)")
+            st.pyplot(fig)
+
+            descarga_csv(df, "CEA_resultados")
     else:
-        st.info("Agregue al menos 2 tratamientos.")
+        st.info("Agrega al menos 2 tratamientos.")
+elif analisis.startswith("8️⃣"):
+    st.header("8️⃣ Costo-Utilidad (CUA)")
+
+    st.caption("Usa utilidades en AVAC/QALYs u otra métrica de utilidad.")
+    df0 = pd.DataFrame({
+        "Tratamiento": ["A", "B", "C"],
+        "Costo total": [0.0, 12000.0, 25000.0],
+        "Utilidad (QALYs)": [0.00, 0.55, 0.78]
+    })
+    tx = st.data_editor(df0, num_rows="dynamic", key="cua_tx")
+
+    if tx.shape[0] >= 2:
+        if (tx["Costo total"] < 0).any():
+            st.error("Hay costos negativos. Ajusta los datos.")
+        elif (tx["Utilidad (QALYs)"] < 0).any():
+            st.error("Hay utilidades negativas. Ajusta los datos.")
+        else:
+            df = tx.copy().reset_index(drop=True)
+            # Orden por utilidad para calcular ICUR
+            df = df.sort_values("Utilidad (QALYs)").reset_index(drop=True)
+            df["ΔCosto"]   = df["Costo total"].diff()
+            df["ΔUtilidad"] = df["Utilidad (QALYs)"].diff()
+            df["ICUR"]     = df.apply(
+                lambda r: (r["ΔCosto"] / r["ΔUtilidad"]) if r["ΔUtilidad"] and r["ΔUtilidad"] > 0 else np.nan,
+                axis=1
+            )
+
+            st.subheader("Tabla incremental (ordenada por utilidad)")
+            st.dataframe(df, hide_index=True, use_container_width=True)
+
+            # Plano Costo-Utilidad
+            fig, ax = plt.subplots()
+            ax.scatter(df["Utilidad (QALYs)"], df["Costo total"])
+            for i, r in df.iterrows():
+                ax.annotate(r["Tratamiento"], (r["Utilidad (QALYs)"], r["Costo total"]))
+            ax.set_xlabel("Utilidad (QALYs)")
+            ax.set_ylabel("Costo total (U.M.)")
+            ax.set_title("Plano Costo-Utilidad (CUA)")
+            st.pyplot(fig)
+
+            descarga_csv(df, "CUA_resultados")
+    else:
+        st.info("Agrega al menos 2 tratamientos.")
+elif analisis.startswith("9️⃣"):
+    st.header("9️⃣ Costo-Beneficio (CBA)")
+
+    st.caption("Beneficios ya expresados en términos monetarios.")
+    df0 = pd.DataFrame({
+        "Alternativa": ["A", "B", "C"],
+        "Costo (US$)": [10000.0, 15000.0, 22000.0],
+        "Beneficio (US$)": [13000.0, 21000.0, 26000.0]
+    })
+    df = st.data_editor(df0, num_rows="dynamic", key="cba_tbl")
+
+    if not df.empty:
+        if (df["Costo (US$)"] < 0).any() or (df["Beneficio (US$)"] < 0).any():
+            st.error("Costos/beneficios no pueden ser negativos.")
+        else:
+            out = df.copy()
+            out["Beneficio Neto (US$)"] = out["Beneficio (US$)"] - out["Costo (US$)"]
+            out["B/C"] = out.apply(
+                lambda r: (r["Beneficio (US$)"] / r["Costo (US$)"]) if r["Costo (US$)"] > 0 else np.nan,
+                axis=1
+            )
+            out = out.sort_values("Beneficio Neto (US$)", ascending=False).reset_index(drop=True)
+
+            st.subheader("Resultados CBA")
+            st.dataframe(out, hide_index=True, use_container_width=True)
+
+            # Métrica resumen
+            mejor = out.iloc[0]
+            st.success(
+                f"Mejor alternativa (por Beneficio Neto): {mejor['Alternativa']} "
+                f"— Beneficio Neto US$ {mejor['Beneficio Neto (US$)']:,.2f} — "
+                f"B/C = {mejor['B/C']:.2f}"
+            )
+
+            # Gráfico barras (Beneficio Neto)
+            fig, ax = plt.subplots()
+            ax.bar(out["Alternativa"], out["Beneficio Neto (US$)"])
+            ax.set_xlabel("Alternativa")
+            ax.set_ylabel("Beneficio Neto (US$)")
+            ax.set_title("Costo-Beneficio: Beneficio Neto por alternativa")
+            st.pyplot(fig)
+
+            descarga_csv(out, "CBA_resultados")
+    else:
+        st.info("Agrega al menos una alternativa.")
